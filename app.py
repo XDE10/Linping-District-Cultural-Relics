@@ -105,7 +105,12 @@ st.markdown("""
 
 st.title("临平区不可移动文物分布")
 
-amap_key = "dfb2d0069359ccd895fd9f960b9c4b5e"
+# 从 secrets 读取高德地图 API key
+try:
+    amap_key = st.secrets["amap"]["api_key"]
+except Exception as e:
+    st.error("未能读取高德地图 API Key。请在 .streamlit/secrets.toml 中配置：\n```\n[amap]\napi_key = \"your_api_key_here\"\n```")
+    amap_key = None
 
 st.sidebar.header("上传与设置")
 uploaded = st.sidebar.file_uploader("上传 Excel (.xlsx/.xls) 或 CSV 文件", type=["xlsx","xls","csv"])
@@ -220,7 +225,6 @@ else:
 points = st.session_state.points
 category_stats = st.session_state.category_stats
 
-# --- CORRECTED: Display stats in the sidebar if they exist ---
 if category_stats:
     st.sidebar.markdown("---")
     st.sidebar.subheader("点位统计")
@@ -303,8 +307,34 @@ if points and amap_key:
         display: flex; align-items: center; margin: 6px 0; cursor: pointer;
     }}
     .map-controls input {{ margin-right: 8px; }}
-    .popup-content {{ max-width: 320px; font-size: 14px; line-height: 1.5; }}
-    .popup-title {{ font-weight: bold; font-size: 16px; margin-bottom: 8px; }}
+    .amap-info-window, .amap-info-content {{
+      background: white !important; border: 1px solid #ccc !important;
+      border-radius: 6px !important; box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
+    }}
+    .amap-info-content {{ padding: 12px !important; min-width: 200px !important; }}
+    .popup-content {{ max-width: 320px; font-size: 14px; line-height: 1.5; color: #333; }}
+    .popup-title {{ 
+      font-weight: bold; font-size: 16px; color: #2c3e50; 
+      margin-bottom: 8px; border-bottom: 2px solid #3498db; padding-bottom: 4px; 
+    }}
+    .popup-type {{ 
+      display: inline-block; background: #3498db; color: white; padding: 2px 8px; 
+      border-radius: 12px; font-size: 12px; margin-bottom: 6px; 
+    }}
+    .popup-era {{ font-style: italic; color: #e67e22; font-size: 13px; margin-bottom: 4px; }}
+    .popup-category {{ color: #27ae60; font-size: 13px; margin-bottom: 6px; font-weight: 500; }}
+    .popup-address {{ 
+      margin-top: 8px; font-size: 12px; color: #666; background: #f8f9fa; 
+      padding: 6px; border-radius: 4px; border-left: 3px solid #3498db; 
+    }}
+    .popup-desc {{ 
+      margin-top: 8px; font-size: 12px; color: #555; max-height: 100px; overflow-y: auto; 
+      background: #f8f9fa; padding: 8px; border-radius: 4px; border-left: 3px solid #e74c3c; 
+    }}
+    .popup-coords {{ 
+      margin-top: 8px; font-size: 11px; color: #888; text-align: center; 
+      padding-top: 6px; border-top: 1px solid #eee; 
+    }}
   </style>
   <script src="https://webapi.amap.com/maps?v=2.0&key={amap_key}"></script>
 </head>
@@ -384,13 +414,37 @@ if points and amap_key:
             offset: new AMap.Pixel(-12, -12), extData: {{ category: catKey }}
           }});
           
-          const infoHtml = `<div class="popup-content"><div class="popup-title">${{escapeHtml(p.name)}}</div>` +
-                           `${{p.type ? `<div>类型：${{escapeHtml(p.type)}}</div>` : ''}}` +
-                           `${{p.era ? `<div>时代：${{escapeHtml(p.era)}}</div>` : ''}}` +
-                           `${{p.category ? `<div>类别：${{escapeHtml(p.category)}}</div>` : ''}}` +
-                           `${{p.addr ? `<div>地址：${{escapeHtml(p.addr)}}</div>` : ''}}</div>`;
+          const infoHtml = `<div class="popup-content">
+                              <div class="popup-title">${{escapeHtml(p.name)}}</div>
+                              ${{p.type ? `<div class="popup-type">${{escapeHtml(p.type)}}</div>` : ''}}
+                              ${{p.era ? `<div class="popup-era">时代：${{escapeHtml(p.era)}}</div>` : ''}}
+                              ${{p.category ? `<div class="popup-category">类别：${{escapeHtml(p.category)}}</div>` : ''}}
+                              ${{p.addr ? `<div class="popup-address">地址：${{escapeHtml(p.addr)}}</div>` : ''}}
+                              ${{p.desc ? `<div class="popup-desc">详情：${{escapeHtml(p.desc)}}</div>` : ''}}
+                              <div class="popup-coords">坐标：${{parseFloat(p.lng).toFixed(6)}}, ${{parseFloat(p.lat).toFixed(6)}}</div>
+                            </div>`;
           
-          const infoWindow = new AMap.InfoWindow({{ content: infoHtml, offset: new AMap.Pixel(0, -30) }});
+          const infoWindow = new AMap.InfoWindow({{ 
+              content: infoHtml, 
+              offset: new AMap.Pixel(0, -30),
+              closeWhenClickMap: true, 
+              size: new AMap.Size(300, 0), 
+              autoMove: true
+          }});
+
+          infoWindow.on('open', function() {{
+              setTimeout(() => {{
+                  const allInfoContents = document.querySelectorAll('.amap-info-content');
+                  allInfoContents.forEach(contentDom => {{
+                      if (contentDom.offsetParent !== null) {{
+                          contentDom.onwheel = function(e) {{
+                              e.stopPropagation();
+                          }};
+                      }}
+                  }});
+              }}, 100);
+          }});
+          
           marker.on('click', () => infoWindow.open(map, marker.getPosition()));
           markersByCategory[catKey].push(marker);
         }});
