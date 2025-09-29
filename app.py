@@ -99,7 +99,22 @@ st.markdown("""
     content: "支持 .xlsx, .xls, .csv 格式";
 }
 [data-testid="stFileUploaderDropzone"] div div small { display: none; }
-[data-testid="stFileUploaderDropzone"] button[data-testid="baseButton-secondary"] { display: none; }
+[data-testid="stFileUploaderDropzone"] button[data-testid="baseButton-secondary"] {
+    visibility: hidden;
+    position: relative;
+}
+[data-testid="stFileUploaderDropzone"] button[data-testid="baseButton-secondary"]::after {
+    content: "浏览文件";
+    visibility: visible;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
 </style>
 """, unsafe_allow_html=True)
 
